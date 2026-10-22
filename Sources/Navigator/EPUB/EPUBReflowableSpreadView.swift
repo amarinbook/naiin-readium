@@ -267,14 +267,34 @@ final class EPUBReflowableSpreadView: EPUBSpreadView {
             return
         }
 
+        // Same fallback order as Readium Kotlin's `R2EpubPageFragment.loadLocator`:
+        // text, then fragment ID, then progression.
         if locator.text.highlight != nil {
-            go(toText: locator.text, completion: completion)
-            // FIXME: find the first fragment matching a tag ID (need a regex)
-        } else if let id = locator.locations.fragments.first, !id.isEmpty {
-            go(toTagID: id, completion: completion)
+            go(toText: locator.text) { found in
+                if found {
+                    completion(true)
+                } else {
+                    self.go(toFragmentOrProgression: locator, completion: completion)
+                }
+            }
         } else {
-            let progression = locator.locations.progression ?? 0
-            go(toProgression: progression, completion: completion)
+            go(toFragmentOrProgression: locator, completion: completion)
+        }
+    }
+
+    /// Scrolls at the locator's first fragment ID, falling back on its progression.
+    private func go(toFragmentOrProgression locator: Locator, completion: @escaping (Bool) -> Void) {
+        // FIXME: find the first fragment matching a tag ID (need a regex)
+        if let id = locator.locations.fragments.first, !id.isEmpty {
+            go(toTagID: id) { found in
+                if found {
+                    completion(true)
+                } else {
+                    self.go(toProgression: locator.locations.progression ?? 0, completion: completion)
+                }
+            }
+        } else {
+            go(toProgression: locator.locations.progression ?? 0, completion: completion)
         }
     }
 
